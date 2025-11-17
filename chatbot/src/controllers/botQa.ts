@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AppDataSource } from "../dbconfig";
 import { BotQa } from "../models/botQa";
+import natural from "natural";
 
 export const createQa = async (req: Request, res: Response) => {
   try {
@@ -104,31 +105,72 @@ export const getQuestionsByScheme = async (req: Request, res: Response) => {
     });
   }
 };
+const tokenizer = new natural.WordTokenizer();
+const stemmer = natural.PorterStemmer;
+
+const normalizeText = (text: string): string => {
+  return tokenizer
+    .tokenize(text.toLowerCase().replace(/[^\w\s]/g, ""))
+    .map((word) => stemmer.stem(word))
+    .join(" ");
+};
+
+const similarityScore = (text1: string, text2: string): number => {
+  return natural.JaroWinklerDistance(text1, text2);
+};
 
 export const getAnswerByQuestion = async (req: Request, res: Response) => {
   try {
     const { question } = req.body;
 
     if (!question) {
-      return res.status(400).json({
-        message: "Question is required",
+      return res.status(400).json({ message: "Question is required" });
+    }
+
+    const qaRepo = AppDataSource.getRepository(BotQa);
+    const allQa = await qaRepo.find();
+
+    const normalizedUserQ = normalizeText(question);
+
+    let bestMatch: any = null;
+    let highestScore = 0;
+
+    allQa.forEach((qa) => {
+      const normalizedStoredQ = normalizeText(qa.question);
+      const score = similarityScore(normalizedUserQ, normalizedStoredQ);
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = qa;
+      }
+    });
+
+    if (highestScore < 0.7 || !bestMatch) {
+      return res.status(200).json({
+        success: false,
+        message: "No relevant answer found. Talk to an Agent.",
+        nextQuestions: [],
       });
     }
 
-    const getQusetion = AppDataSource.getRepository(BotQa);
-    const getAnswer = await getQusetion.findOne({ where: { question } });
-
-    if (!getAnswer) {
-      return res.status(400).json({
-        message: "No answers found!, Talk to an Agent",
-      });
+    let nextQuestions: string[] = [];
+    if (bestMatch.nextQuestions) {
+      if (typeof bestMatch.nextQuestions === "string") {
+        nextQuestions = bestMatch.nextQuestions
+          .split(",")
+          .map((q: string) => q.trim());
+      } else if (Array.isArray(bestMatch.nextQuestions)) {
+        nextQuestions = bestMatch.nextQuestions;
+      }
     }
+
     return res.status(200).json({
       success: true,
-      answer: getAnswer.answer,
-      nextQuestions: getAnswer.nextQuestions,
+      answer: bestMatch.answer,
+      nextQuestions,
+      confidence: highestScore,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

@@ -19,8 +19,7 @@ export default function Chatbot() {
     { from: "user" | "bot"; text: string; buttons?: string[]; time: string }[]
   >([]);
   const [availableQuestions, setAvailableQuestions] = useState<string[]>([]);
-  const [feedbackMode, setFeedbackMode] = useState(false);
-  const [feedbackInput, setFeedbackInput] = useState("");
+  const [queryInput, setQueryInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const now = () => new Date().toLocaleTimeString();
@@ -33,7 +32,7 @@ export default function Chatbot() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [chat, availableQuestions, feedbackMode]);
+  }, [chat, availableQuestions]);
 
   const fetchQa = async () => {
     setLoading(true);
@@ -68,20 +67,15 @@ export default function Chatbot() {
 
     setChat([
       {
-        from: "bot",
-        text: `Hi! You're chatting with Bhima e-Gold Assistant.`,
+        from:"bot",
+        text: "👋 Hello, I'm hear to Assist You 🙋🏻‍♂️",
         time: now(),
-      },
-      {
-        from: "bot",
-        text: "Select a question below to get started.",
-        buttons: initialList,
-        time: now(),
-      },
+      }
     ]);
   };
 
-  const handleQuestionClick = async (questionText: string) => {
+  // 🧠 Main logic for question click or search
+  const askQuestion = async (questionText: string) => {
     setChat((prev) => [
       ...prev,
       { from: "user", text: questionText, time: now() },
@@ -93,20 +87,23 @@ export default function Chatbot() {
         question: questionText,
       });
 
-      const { answer, nextQuestions } = res.data;
+      const { success, answer, nextQuestions, message } = res.data;
 
       setChat((prev) => {
         const withoutTyping = prev.slice(0, -1);
-        const nextQsArray = nextQuestions ? JSON.parse(nextQuestions) : [];
+
+        const nextQsArray =
+          typeof nextQuestions === "string"
+            ? JSON.parse(nextQuestions)
+            : nextQuestions || [];
 
         setAvailableQuestions(nextQsArray);
-        if (!nextQsArray.length) setFeedbackMode(true);
 
         return [
           ...withoutTyping,
           {
             from: "bot",
-            text: answer,
+            text: success ? answer : message || "No relevant answer found.",
             buttons: nextQsArray,
             time: now(),
           },
@@ -119,7 +116,7 @@ export default function Chatbot() {
           ...withoutTyping,
           {
             from: "bot",
-            text: "Sorry, something went wrong.",
+            text: "Sorry, something went wrong. Please try again later.",
             time: now(),
           },
         ];
@@ -127,31 +124,18 @@ export default function Chatbot() {
     }
   };
 
-  const handleFeedbackSubmit = () => {
-    if (!feedbackInput.trim()) return;
-    setChat((prev) => [
-      ...prev,
-      {
-        from: "user",
-        text: feedbackInput,
-        time: now(),
-      },
-      {
-        from: "bot",
-        text: "Thank you for your feedback! 😊",
-        time: now(),
-      },
-    ]);
-    setFeedbackInput("");
-    setFeedbackMode(false);
+  const handleQuestionClick = (q: string) => askQuestion(q);
+
+  const handleQuerySubmit = () => {
+    if (!queryInput.trim()) return;
+    askQuestion(queryInput.trim());
+    setQueryInput("");
   };
 
   const resetChat = () => {
     setChat([]);
     setSelectedScheme(null);
     setAvailableQuestions([]);
-    setFeedbackMode(false);
-    setFeedbackInput("");
   };
 
   return (
@@ -160,9 +144,7 @@ export default function Chatbot() {
         <button
           onClick={() => {
             setOpen(true);
-            if (qaList.length > 0) {
-              handleSelectScheme("e-Gold");
-            }
+            if (qaList.length > 0) handleSelectScheme("e-Gold");
           }}
           style={styles.openBtn}
         >
@@ -171,7 +153,7 @@ export default function Chatbot() {
       ) : (
         <div style={styles.widget}>
           <div style={styles.header}>
-            <strong>💎 Bhima Assistant</strong>
+            <strong>Hello, I'm BHEEM</strong>
             <button
               onClick={() => {
                 setOpen(false);
@@ -186,82 +168,150 @@ export default function Chatbot() {
           <div style={styles.body}>
             {selectedScheme && (
               <div style={styles.chatArea}>
-                {chat.map((m, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: m.from === "user" ? "flex-end" : "flex-start",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        maxWidth: "80%",
-                        padding: "8px 12px",
-                        borderRadius: 12,
-                        background: m.from === "user" ? "#0d6efd" : "#f1f3f5",
-                        color: m.from === "user" ? "#fff" : "#000",
-                      }}
-                    >
-                      {m.text}
-                    </div>
+  {chat.map((m, i) => (
+    <div
+      key={i}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: m.from === "user" ? "flex-end" : "flex-start",
+        marginBottom: 8,
+        width: "100%",
+      }}
+    >
+      {/* BOT MESSAGE UI */}
+      {m.from === "bot" && (
+        <div className="bot-message" style={{ display: "flex", gap: 2 }}>
+          <img src="/boticon.png" className="bot-avatar" />
+          <div
+            style={{
+              maxWidth: "90%",
+              padding: "8px 12px",
+              borderRadius: 12,
+              background: "#f1eeeeff",
+              color: "#503504ff",
+            }}
+          >
+            {m.text}
+          </div>
+        </div>
+      )}
 
-                    {m.buttons && m.buttons.length > 0 && m.from === "bot" && (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          marginTop: 6,
-                        }}
-                      >
-                        {m.buttons.map((q) => (
-                          <button
-                            key={q}
-                            onClick={() => handleQuestionClick(q)}
-                            className="btn btn-outline-secondary btn-sm"
-                            style={{ marginBottom: 4 }}
-                          >
-                            {q}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+      {/* USER MESSAGE UI */}
+      {m.from === "user" && (
+        <div
+          className="user-message"
+          style={{ display: "flex", gap: 2 }}
+        >
+          <div
+            style={{
+              maxWidth: "90%",
+              padding: "8px 12px",
+              borderRadius: 12,
+              background: "#f7d18aff",
+              color: "#020000ff",
+            }}
+          >
+            {m.text}
+          </div>
+          <img src="/user.png" className="bot-avatar" />
+        </div>
+      )}
 
-                {feedbackMode && (
-                  <div style={{ marginTop: 6 }}>
-                    <input
-                      type="text"
-                      value={feedbackInput}
-                      placeholder="Type your feedback..."
-                      onChange={(e) => setFeedbackInput(e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "6px",
-                        borderRadius: 6,
-                        border: "1px solid #ccc",
-                      }}
-                    />
-                    <button
-                      onClick={handleFeedbackSubmit}
-                      className="btn btn-primary btn-sm mt-1"
-                      style={{ width: "100%" }}
-                    >
-                      Submit Feedback
-                    </button>
-                  </div>
-                )}
-
-                <div ref={chatEndRef} />
-              </div>
+      {/* NEXT QUESTION BUTTONS (BOT ONLY) */}
+      {m.buttons && m.buttons.length > 0 && m.from === "bot" && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            marginTop: "12px",
+          }}
+        >
+          {m.buttons.map((q, index) => (
+            <div
+              key={q}
+              style={{
+                animation: `fadeInBubble 0.5s ease ${index * 0.12}s both`,
+              }}
+            >
+              <button
+                onClick={() => handleQuestionClick(q.replace(/[[\]"]+/g, ""))}
+                style={{
+                  border: "none",
+                  background: "linear-gradient(135deg, #ffe7d0ff 0%)",
+                  borderRadius: "20px",
+                  padding: "10px 16px",
+                  fontSize: "14px",
+                  color: "#000000ff",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  boxShadow: "0 3px 6px rgba(0,0,0,0.15)",
+                  transition: "all 0.2s ease",
+                  width: "fit-content",
+                  fontWeight: 500,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "scale(1.05)";
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 10px rgba(108, 99, 255, 0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                  e.currentTarget.style.boxShadow =
+                    "0 3px 6px rgba(0,0,0,0.15)";
+                }}
+              >
+                {q.replace(/[[\]"]+/g, "")}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  ))}
+  <div ref={chatEndRef} />
+</div>
             )}
           </div>
 
-          <div style={styles.footer}>
-            <small style={{ opacity: 0.8 }}>Bhima Assistant</small>
+          {/* Manual question box */}
+          <div
+            style={{
+              display: "flex",
+              padding: 8
+            }}
+          >
+            <input
+              type="text"
+              name="query"
+              id="query"
+              placeholder="Ask anything..."
+              value={queryInput}
+              onChange={(e) => setQueryInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleQuerySubmit()}
+              style={{
+                flex: 1,
+                padding: "8px",
+                borderRadius: 20,
+                border: "1px solid #b1aeaeff",
+                marginRight: 6,
+                paddingLeft: 14,
+              }}
+            />
+            <button
+              onClick={handleQuerySubmit}
+              disabled={!queryInput.trim()}
+              style={{
+                border: "none",
+                borderRadius: "50%",
+                backgroundImage: "url('/send.png')",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat"
+              }}
+            >
+            </button>
           </div>
         </div>
       )}
@@ -290,15 +340,15 @@ const styles: Record<string, React.CSSProperties> = {
     width: 420,
     height: 620,
     borderRadius: 12,
-    overflow: "scroll",
     display: "flex",
     flexDirection: "column",
-    background: "#fff",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+    background: "#ffff",
+    boxShadow: "0 6px 18px rgba(0, 0, 0, 0.12)",
   },
   header: {
     padding: "10px 12px",
-    background: "#fff",
+    background: "linear-gradient(rgba(224, 105, 8, 0.99), rgba(250, 221, 60, 0.95))",
+    color:"#050505ff",
     borderBottom: "1px solid #e9ecef",
     display: "flex",
     justifyContent: "space-between",
@@ -322,11 +372,5 @@ const styles: Record<string, React.CSSProperties> = {
     overflowY: "auto",
     padding: "6px 6px",
     maxHeight: "490px",
-  },
-  footer: {
-    padding: 8,
-    borderTop: "1px solid #e9ecef",
-    textAlign: "center",
-    background: "#fff",
-  },
+  }
 };
